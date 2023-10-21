@@ -37,10 +37,10 @@
 ### 一、全局配置块
 
 ```nginx
-# 定义单进程。通常将其设成CPU的个数或者内核数
+# 定义单进程，通常将其设成CPU的个数或者内核数
 worker_processes  1;
 
-# Nginx 的错误日志存放目录
+# Nginx的错误日志存放目录
 error_log  /var/log/nginx/error.log warn;   
 ```
 
@@ -81,17 +81,65 @@ http {
         # 定义主机的名字，一般是访问的域名，可定义多个，用空格隔开
         server_name  lordmoon.site www.lordmooon.site;
         
+        # 反向代理群组
+        upstream mysvr {   
+          server 127.0.0.1:7878;
+          server 192.168.10.121:3333;  
+    	}
+        
         # location模块可以配置nginx如何反应资源请求
-        loaction {
+        loaction / {
         	# 网站根目录
             root  html;
-            
+
             # 网站首页
             index  index.html index.htm;
     	}
+       
+        # 这里针对以/api为前缀的路径进行反向代理
+        # 这样就可以对项目中的axios做跨域代理了
+        location /api {
+            proxy_pass  http://mysvr;
+        }
+        
+        # 这样写可以精确匹配路径
+        location = /test {
+            proxy_pass  http://mysvr;
+        }
     }
 }
 ```
 
+在`http`块中，我们还可以配置`https`协议对应的`ssl`证书，这和配置`http`协议的80端口配置不同：
 
+```nginx
+http {
+    server {
+        # https 443端口
+        listen  443 ssl;
+        server_name  www.lordmoon.site lordmoon.site;
+        
+        upstream mysvr {   
+          server 127.0.0.1:7878;
+          server 192.168.10.121:3333;  
+    	}
+        
+        # 配置你下载的ssl证书
+        ssl_certificate  ssl/server.pem;
+        ssl_certificate_key  ssl/server.key;
+        
+        location /api {
+            proxy_pass  http://mysvr;
+        }
+    }
+    
+    server {
+        listen  80;
+        server_name  www.lordmoon.site lordmoon.site;
+        
+        # 将请求重定向为https
+        rewrite ^(.*)$ https://lordmoon.site;
+    }
+}
+```
 
