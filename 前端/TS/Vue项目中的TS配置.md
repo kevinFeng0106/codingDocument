@@ -1,137 +1,123 @@
-# Vue项目中的TS配置
+# 使用TS开发Vue项目
 
-学习了`ts`和一些`vue`的配置之后，老是会忘记
+第一次看`ts`时，给我的印象就是除了写法比较抽象之外，还有项目中的配置项非常杂乱，老是容易忘
 
-这篇文档就来整理巩固一下`ts`及其相关配置
+最近摆了两个星期，想要找点事做，打算就从`ts`开始，先整理一下，顺便纠正一下自己之前错误的理解
 
-
-
-### 一、路径别名及映射
-
-> 在项目中，经常会将`@`符作为`src`文件夹的映射及别名，虽然这不是`ts`才有的配置，但是就放在这里一起说吧，我们来看一下怎样配置路径解析
+那些什么基本类型的使用我就不提了，我就只整理我认为值得整理的地方
 
 
 
-##### 1. 第一种方式
 
-我们可以在`vite.config.ts`文件中添加如下的`alias`配置：
 
-```typescript
-export default defineConfig({
-    // 省略其他配置...
-    resolve: {
-        alias: {
-            "@": resolve(__dirname, "./src")
-        }
-    }
-})
-```
+### tsconfig.json配置文件
+
+这是`TypeScript`编译器必需的，如果没有`tsconfig.json`文件，编译器将不会编译`TypeScript`文件
 
 
 
-##### 2. 第二种方式
+##### references配置项
 
-我们还可以在`tsconfig.json`文件中作如下配置：
+`tsconfig.json`文件是`ts`项目最主要的配置文件，在`vue3`项目中并没有在`tsconfig.json`中直接进行配置
 
-```typescript
+而是使用了`references`的配置项来引用了`tsconfig.app.json`和`tsconfig.node.json`的配置文件，来合成一个总的配置文件
+
+```json
 {
-    "compileOptions": {
-        // 省略其他配置...
-        "baseUrl": ".",
-        "paths": {
-            "@/*":["src/*"]
-        }
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.node.json"
+    },
+    {
+      "path": "./tsconfig.app.json"
     }
+  ]
 }
 ```
 
 
 
+##### include配置项
 
-
-### 二、include选项
-
-> 在`tsconfig.json`文件的`include`选项中，被包含的文件会被`ts`自动编译，也就是相当于`vue`会自动解析执行这些文件，就不用我们手动引入再去执行了
-
-
-
-举个例子：
-
-这里就是所有带`.ts`、`.d.ts`、`.tsx`、`.vue`后缀的文件都会被自动编译
-
-我们在引入`Element Plus`组件库时，可以利用这个`include`来做一些自动导入
+`include`配置项用于指定需要编译的`ts`文件，我们先来看看`tsconfig.app.json`中的`include`配置项
 
 ```json
 "include": [
-    "src/**/*.ts",
-    "src/**/*.d.ts",
-    "src/**/*.tsx",
-    "src/**/*.vue",
-]
+    "env.d.ts", 
+    "src/**/*", 
+    "src/**/*.vue"
+],
 ```
 
+这里就将这三种包含的`ts`代码的文件进行编译，只有编译为`js`后，项目才能正常运行，一般项目中的这个配置我们无需改动
 
 
 
 
-### 三、types选项
 
-> 在`tsconfig.json`中还有一个`types`选项，这是用来扩展`ts`的类型的，例如我们引入了一些第三方库，需要对其中的一些参数作解析，就可以引入这个库的`types`文件
+### .d.ts声明文件
+
+声明文件应该是项目中应用`ts`时，最让人头疼的地方，因为引入`module`时经常报错就是因为`.d.ts`文件没有找到
+
+那么`ts`项目是如何找到并编译`.d.ts`文件的呢，我也一直很迷糊，所以现在要好好分析一下
 
 
 
-例如我们引入了`Element Plus`组件库
+##### include配置项
 
-我们就可以一同引入它的`types`声明文件：
+首先，我们**自定义**的`.d.ts`声明文件一般在`include`配置项下引入
+
+但是实际上我们在自定义的`.d.ts`文件中声明的`type`，一般引入时都是`import`，所以在这里`include`也没有用处
+
+所以这个`include`主要是针对在`.d.ts`中使用`declare`的
+
+只要`include`了`.d.ts`文件，那么就可以直接使用`declare`的东西而不用`import`
+
+```json
+"include": [
+    "env.d.ts", 
+    "src/**/*", 
+    "src/**/*.d.ts", // 引入声明文件
+    "src/**/*.vue"
+],
+```
+
+然后，我们一般在`src`文件夹下新建一个`types`文件夹，专门用于存放`.d.ts`声明文件，这样我们导入类型就可以直接使用了
+
+
+
+##### compileOptions下的types配置项
+
+我们引入的第三方库的类型声明包一般都在`compileOptions`下的`types`中配置
 
 ```json
 "types": [
-    "element-plus/global"
+    "@dcloud/types",
+    "@uni-helper/uni-ui-types"
 ]
 ```
 
+如果我们不设置`typeRoots`项，那么它就会先在`uni_modules/@types`文件夹下查找，然后再查找`uni_modules`文件夹下的
 
+如果我们设置了`typeRoots`项，那么它不会查找上面两项，而是**只查找**在`typeRoots`项中配置的路径，就是说**会直接覆盖**默认路径
 
+例如，我们做了如下的配置，那么它就会以`./test`为根目录，结合`types`项，查找第三方库的`.d.ts`声明文件，不会再查找其他路径
 
-
-### 四、declare module语句
-
-> 通常我们会在一些被自动编译的文件类型中使用`declare module`来进行类型扩展
-
-
-
-##### 1. 自定义模块
-
-声明`custom`模块，名字可以随便起：
-
-```typescript
-declare module 'custom' {
-    // 定义某个类型
-    const myComp: typeof ...
+```json
+"compileOptions": {
+    "typeRoots": ["./test"]
 }
 ```
 
-使用时，引入模块即可：
+所以我们如果要自定义`typeRoots`，那么往往会加上`"./node_modules/@types"`的路径，以方便查找第三方库的类型声明文件
 
-```typescript
-import * as custom from 'custom'
-
-// 使用模块中声明的类型
-const func = (comp: custom.myComp) => {
-    // ...
-}
-```
-
-
-
-##### 2. global模块
-
-使用`declare global`的话，就不用显式地导入模块再使用了：
-
-```typescript
-declare global {
-    // myComp无需再导入模块，直接使用即可
-    const myComp: typeof ...
+```json
+"compileOptions": {
+    "typeRoots": [
+        "./test",
+        "./node_modules/@types",
+    ]
 }
 ```
 
@@ -139,27 +125,31 @@ declare global {
 
 
 
-### 五、InstanceType获取组件实例类型
+### declare声明的使用
 
-> `InstanceType`可以获取组件实例类型，在我们使用组件实例的方法和属性时，有不错的辅助作用，使用`InstanceType`时，需要传入一个类型作为参数，一般我们先引入组件，然后配合`typeof`来获取组件类型，然后将这个类型传入`InstanceType`中
+在`.d.ts`文件中，顶级语句除了`export`，还可以用`declare`
+
+`declare`可以声明变量、`type`、`interface`、函数、`module`、命名空间等等
+
+`declare`与`export`不同，就是它在`tsconfig.json`中的`include`中被包括了的话，那么就可以不用`import`即可使用
 
 
 
-举个例子：
+##### declare module
+
+这个用法，顾名思义就是声明一个模块
+
+在一个`declare`模块字面量里面可以使用`export`，但是不用也可以，建议不用，不然容易搞混
+
+一般声明模块都是对第三方的包的模块进行扩展，我们举个例子看看，这样就可以扩展类的属性
 
 ```typescript
-// 引入组件
-import MySwiper from '...path'
-
-// 声明组建的实例类型
-export type MySwiperInstance = InstanceType<typeof MySwiper>
+declare module 'vue' {
+    interface Component {
+        name: string
+    }
+}
 ```
-
-
-
-### 六、Component声明组件类型
-
-> 在小程序中，对于自定义或插件市场的组件，可以通过`Component<T>`来对该组件的类型进行包装，成为一个组件类型
 
 
 
