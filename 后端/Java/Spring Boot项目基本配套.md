@@ -248,6 +248,128 @@ public class Md5Util {
 
 
 
+### ThreadLocal工具类
+
+在项目中，往往需要拿到拦截器中解析`token`得到的用户`claims`，而我们又不应该重复地解析`token`
+
+所以我们就维护一个全局的`ThreadLocal`对象，将每次请求的那个线程内的数据存储到`ThreadLocal`中
+
+这样我们就可以在本次请求时的其他任何地方都拿到这些数据，直接来看如何封装
+
+```java
+package com.lordmoon.utils;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * ThreadLocal 工具类
+ */
+@SuppressWarnings("all")
+public class ThreadLocalUtil {
+    // 提供ThreadLocal对象常量，维护全局单例的ThreadLocal对象
+    private static final ThreadLocal THREAD_LOCAL = new ThreadLocal();
+
+    // 根据键获取值
+    public static <T> T get() {
+        return (T) THREAD_LOCAL.get();
+    }
+
+    // 存储键值对
+    public static void set(Object value) {
+        THREAD_LOCAL.set(value);
+    }
+
+
+    // 清除ThreadLocal 防止内存泄漏
+    public static void remove() {
+        THREAD_LOCAL.remove();
+    }
+}
+```
+
+
+
+
+
+### 添加统一拦截器
+
+为了实现后端身份校验，而又不想在每个接口内都解析`token`，就需要在所有请求打到接口前拦截并校验
+
+我们首先定义一个拦截器类，该拦截器会在请求到达前和完成后作出某些操作
+
+```java
+package com.lordmoon.interceptors;
+
+import com.lordmoon.pojo.Result;
+import com.lordmoon.utils.JwtUtil;
+import com.lordmoon.utils.ThreadLocalUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.stereotype.Component;
+import org.springframework.web.servlet.HandlerInterceptor;
+
+import java.util.Map;
+
+@Component // 自动注入到spring容器中
+public class LoginInterceptor implements HandlerInterceptor {
+
+    @Override
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handle) throws Exception {
+        String token = request.getHeader("Authorization");
+        try {
+            Map<String, Object> claims = JwtUtil.parseToken(token);
+            ThreadLocalUtil.set(claims); // 用户信息放入ThreadLocal
+
+            return true; // true表示放行
+        } catch (Exception e) {
+            e.printStackTrace();
+            response.setStatus(401);
+            return false;
+        }
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
+        ThreadLocalUtil.remove(); // 请求完成后清空TreadLocal中的数据
+    }
+}
+```
+
+然后我们定义一个配置类，在配置类中添加上该拦截器
+
+```java
+package com.lordmoon.config;
+
+import com.lordmoon.interceptors.LoginInterceptor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration // 自动注入到spring容器中
+public class WebConfig implements WebMvcConfigurer {
+
+    @Autowired
+    private LoginInterceptor loginInterceptor; // 注入自定义的登录拦截器
+
+    /**
+     * 添加拦截器
+     *
+     * @param registry
+     */
+    @Override
+    public void addInterceptors(InterceptorRegistry registry) {
+        registry.addInterceptor(loginInterceptor)
+                .excludePathPatterns("/user/login", "/user/register");
+    }
+}
+```
+
+
+
+
+
 ### 全局异常处理
 
 全局异常处理主要说的是处理`controller`层的异常，其他层的异常就可以向上抛或者直接`catch`
