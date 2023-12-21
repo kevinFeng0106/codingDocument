@@ -60,7 +60,7 @@ sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/too
 
 ### 四、安装oh-my-zsh插件
 
-使用`oh-my-zsh`的好处，就是可以轻松配置插件，而且这些插件都非常好用
+使用`oh-my-zsh`的好处，就是可以轻松地配置插件，而且这些插件都非常好用
 
 
 
